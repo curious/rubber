@@ -88,6 +88,18 @@ namespace :rubber do
       ENDSCRIPT
     end
 
+    # Curious: install node.js (temporary replacement for TheRubyRacer)
+    after "rubber:install_packages", "rubber:base:configure_nodejs"
+    task :configure_nodejs do
+      rubber.sudo_script 'configure_nodejs', <<-ENDSCRIPT
+        if [[ ! -f "/usr/bin/nodejs" ]]; then
+          add-apt-repository --yes ppa:chris-lea/node.js
+          apt-get update
+          apt-get --yes install nodejs
+        fi
+      ENDSCRIPT
+    end
+
     # Update /etc/sudoers so that SSH-related environment variables so capistrano/rubber tasks can take advantage of ssh-agent forwarding
     before "rubber:bootstrap", "rubber:base:update_sudoers"
     task :update_sudoers do

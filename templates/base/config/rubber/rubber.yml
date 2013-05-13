@@ -1,24 +1,24 @@
 # REQUIRED: The name of your application
-app_name: your_app_name
+app_name: Curious
 
 # REQUIRED: The system user to run your app servers as
 app_user: app
 
 # REQUIRED: Notification emails (e.g. monit) get sent to this address
 #
-admin_email: "root@#{full_host}"
+admin_email: "dl-outagewatch@team.curious.com"
 
 # OPTIONAL: If not set, you won't be able to access web_tools
 # server (graphite, graylog, monit status, haproxy status, etc)
-# web_tools_user: admin
-# web_tools_password: sekret
+web_tools_user: web_tools_admin
+web_tools_password: web_tools_cocoa
 
 # REQUIRED: The timezone the server should be in
-timezone: US/Eastern
+timezone: US/Pacific
 
 # REQUIRED: the domain all the instances should be associated with
 #
-domain: foo.com
+domain: curious.com
 
 # OPTIONAL: See rubber-dns.yml for dns configuration
 # This lets rubber update a dynamic dns service with the instance alias
@@ -57,10 +57,12 @@ cloud_providers:
     region: us-east-1
 
     # REQUIRED The amazon keys and account ID (digits only, no dashes) used to access the AWS API
-    #
-    access_key: XXX
-    secret_access_key: YYY
-    account: 'ZZZ'
+    # Curious: This uses Access-Key-Pair for the Builds IAM User in the prod-aws-compute account.
+    # TODO: This should be in the format of CloudConfig::Secret.aws_access_key_id, but it doesn't work in
+    # TODO: all cases (namely for rubber's build-in tasks that we use for cron jobs, like db:backup), so reading YAML directly
+    access_key: "#{YAML.load_file('config/secret.yml')[ENV['RAILS_ENV'] || 'development']['aws_access_key_id']}"
+    secret_access_key: "#{YAML.load_file('config/secret.yml')[ENV['RAILS_ENV'] || 'development']['aws_secret_access_key']}"
+    account: 945140616992
 
     # REQUIRED:  The name of the amazon keypair and location of its private key
     #
@@ -69,8 +71,12 @@ cloud_providers:
     # extension ".pub".  The easiest way to get your hand on this is to create the
     # public key from the private key: ssh-keygen -y -f gsg-keypair > gsg-keypair.pub
     #
-    key_name: gsg-keypair
-    key_file: "#{Dir[(File.expand_path('~') rescue '/root') + '/.ec2/*' + cloud_providers.aws.key_name].first}"
+    # DEVELOPERS: You don't have this keypair installed on your local machines as a security precaution. If you find
+    # yourself needing to run rubber commands then change this value to the "DevSSHKeyPair". However:
+    #  * DO NOT create EC2 Instances with this set to DevSSHKeyPair
+    #  * DO NOT check this file in with key_name set to DevSSHKeyPair
+    key_name: EC2LaunchKeyPair
+    key_file: "#{Dir[(File.expand_path('~') rescue '/root') + '/.ec2/' + cloud_providers.aws.key_name + '.pem'].first}"
 
     # OPTIONAL: Needed for bundling a running instance using rubber:bundle
     #
@@ -231,10 +237,19 @@ web_tools_ssl_port: 8443
 #         to_port: "#{graphite_server_port}"
 #
 security_groups:
-  default:
-    description: The default security group
+  automation:
+    description: Allows automated deployments via ssh/scp.
     rules:
-      - source_group_name: default
+      - source_group_name: automation
+        source_group_account: "#{cloud_providers.aws.account}"
+      - protocol: tcp
+        from_port: 22
+        to_port: 22
+        source_ips: [0.0.0.0/0]
+  ssh_admin:
+    description: Allows administrative ssh access.
+    rules:
+      - source_group_name: ssh_admin
         source_group_account: "#{cloud_providers.aws.account}"
       - protocol: tcp
         from_port: 22
@@ -264,7 +279,7 @@ security_groups:
         source_ips: [0.0.0.0/0]
 
 # OPTIONAL: The default security groups to create instances with
-assigned_security_groups: [default]
+assigned_security_groups: [automation, ssh_admin]
 roles:
   web:
     assigned_security_groups: [web]
@@ -287,7 +302,7 @@ isolate_security_groups: false
 
 # OPTIONAL: Prompts one to sync security group rules when the ones in amazon
 # differ from those in rubber
-prompt_for_security_group_sync: true
+prompt_for_security_group_sync: false
 
 # OPTIONAL: A list of CIDR address blocks that represent private networks for your cluster.
 # Set this to open up wide access to hosts in your network.  Consequently, setting the CIDR block
@@ -297,7 +312,20 @@ private_networks: [10.0.0.0/8]
 # OPTIONAL: The packages to install on all instances
 # You can install a specific version of a package by using a sub-array of pkg, version
 # For example, packages: [[rake, 0.7.1], irb]
-packages: [postfix, build-essential, git-core, libxslt-dev, ntp]
+#
+# Curious.com custom add-ons:
+#   libsqlite3-dev: required for sqlite3 on ubuntu
+#   libxslt-dev, libxml2-dev: required for nokogiri on ubuntu, which is required for socialcast-opengraph
+#   libpcre3-dev: required for nginx to install without the '--without-http_rewrite_module' flag,
+#                 which breaks the default nginx application.conf provided by rubber.
+#                 apparently this is pre-installed for you on the default local-storage lucid AMIs, but not the ERB AMIs
+#   imagemagick: for paperclip to thumbnail uploaded assets
+#   ffmpeg: for RMagick analysis of uploaded videos
+#   libmysqlclient-dev: for mysql2 gem on Ubuntu 12.04 LTS
+#   unzip: deploy-elasticsearch.rb runs an unzip command, if unzip on the machine we can't bootstrap tools
+#   tmpreaper: keeps /tmp directory clean on long-running servers
+#   python-software-properties, python, g++, make: required for installing node.js (temporary replacement for TheRubyRacer)
+packages: [postfix, build-essential, git-core, ec2-ami-tools, ntp, libsqlite3-dev, libxslt-dev, libxml2-dev, libpcre3-dev, imagemagick, ffmpeg, libmysqlclient-dev, unzip, tmpreaper, python-software-properties, python, g++, make]
 
 # OPTIONAL: The package manager mirror to use for installation of primary packages (i.e., those not explicitly
 # sourced from a different repository).  If not specified, whatever mirror configured by your server image
@@ -442,6 +470,106 @@ staging_roles: "#{known_roles.reject {|r| r =~ /slave/ || r =~ /^db$/ }.join(','
 #             filesystem_opts: -f # the filesystem opts in mkfs
 #             mount: /mnt/large_work_dir # The directory to mount this LVM volume to
 
+# Curious: convenience aliases for declaring standard servers of different sizes
+aliases:
+  m1_large: &m1_large
+    cloud_providers:
+      aws:
+        image_type: m1.large
+  m1_xlarge: &m1_xlarge
+    cloud_providers:
+      aws:
+        image_type: m1.xlarge
+
+hosts:
+  # The following hosts are not small instances, so they get their own entries
+  # We also manually distribute instances across availability zones so both
+  # zones have a similar mix of instance sizes.
+  #   us-east-1a: 2 XL, 2 M
+  #   us-east-1d: 1 XL, 1 L, 2 M
+  webapp01:
+    <<: *m1_xlarge
+    availability_zone: us-east-1a
+    # Curious: we have two NewRelic accounts, one cheap (standard) and one 
+    # expensive (professional). Because NewRelic charges on a per-server
+    # basis, we only want to use the license key for the expensive account
+    # on a limited number of servers in production.  Because traffic is 
+    # load-balanced across our web servers, instrumenting one web server with
+    # more expensive metrics should give us a good picture of performance
+    # across all servers.
+    newrelic_license_key: 7300c26dee6d2f1a46b5fefd300b22da87fe6a3e
+  webapp02:
+    <<: *m1_xlarge
+    availability_zone: us-east-1d
+  webapp03:
+    availability_zone: us-east-1d
+  webapp04:
+    availability_zone: us-east-1d
+  webapp05:
+    availability_zone: us-east-1a
+  webapp06:
+    availability_zone: us-east-1a
+  webapp07:
+    <<: *m1_large
+    availability_zone: us-east-1a
+  webapp08:
+    <<: *m1_xlarge
+    availability_zone: us-east-1d
+  webapp09:
+    <<: *m1_large
+    availability_zone: us-east-1a
+  webapp10:
+    <<: *m1_large
+    availability_zone: us-east-1a
+  webapp11:
+    <<: *m1_large
+    availability_zone: us-east-1a
+  webapp12:
+    <<: *m1_large
+    availability_zone: us-east-1a
+  webapp13:
+    <<: *m1_large
+    availability_zone: us-east-1d
+  webapp14:
+    <<: *m1_large
+    availability_zone: us-east-1d
+  webapp15:
+    <<: *m1_large
+    availability_zone: us-east-1d
+  webapp16:
+    <<: *m1_large
+    availability_zone: us-east-1d
+
+# Curious: We have default EBS settings for redis and elasticsearch_server roles,
+# but for instances that have both (e.g., our internal servers), we need to 
+# explicitly specify that they get both rather than just one or the other.
+  exdev01:
+    availability_zone: us-east-1a
+    volumes:
+      - size: 10
+        zone: us-east-1a
+        device: /dev/sdi
+        mount: /mnt/redis
+        filesystem: ext3
+      - size: 10
+        zone: us-east-1a
+        device: /dev/sdj
+        mount: /mnt/elasticsearch
+        filesystem: ext3
+  qa01:
+    availability_zone: us-east-1a
+    volumes:
+      - size: 10
+        zone: us-east-1a
+        device: /dev/sdi
+        mount: /mnt/redis
+        filesystem: ext3
+      - size: 10
+        zone: us-east-1a
+        device: /dev/sdj
+        mount: /mnt/elasticsearch
+        filesystem: ext3
+
 # OPTIONAL: You can also define your own variables here for use when
 # transforming config files, and they will be available in your config
 # templates as  <%%= rubber_env.var_name %>
@@ -458,6 +586,38 @@ staging_roles: "#{known_roles.reject {|r| r =~ /slave/ || r =~ /^db$/ }.join(','
 #     packages: []
 #   somerole2:
 #     myconfig: someval
+
+roles:
+  redis:
+    cloud_providers:
+      aws:
+        # Curious: use larger instances for memory-bound roles (Redis)
+        image_type: m1.medium
+    # Curious: Ensure that redis stores its data on a persistent EBS volume so that
+    # we don't lose redis data (such as queued jobs) in the case of an instance crash.
+    # Availability zone of instance must match that of its EBS volumes.
+    availability_zone: us-east-1a
+    volumes:
+      - size: 10
+        zone: us-east-1a
+        device: /dev/sdi
+        mount: /mnt/redis
+        filesystem: ext3
+
+  elasticsearch_server:
+    cloud_providers:
+      aws:
+        image_type: m1.medium
+    # Ensure that elasticsearch stores its data on a persistent EBS volume so that
+    # we don't lose the search index in the case of an instance crash.
+    # Availability zone of instance must match that of its EBS volumes.
+    availability_zone: us-east-1a
+    volumes:
+      - size: 10
+        zone: us-east-1a
+        device: /dev/sdj
+        mount: /mnt/elasticsearch
+        filesystem: ext3
 
 # OPTIONAL: Environment specific overrides
 # environments:

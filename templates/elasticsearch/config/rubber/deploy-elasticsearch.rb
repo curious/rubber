@@ -6,6 +6,7 @@ namespace :rubber do
 
     after "rubber:install_packages", "rubber:elasticsearch:install"
 
+    # Curious: Added bigdesk plugin for cluster monitoring (http://localhost:9200/_plugin/bigdesk/)
     task :install, :roles => :elasticsearch do
       rubber.sudo_script 'install_elasticsearch', <<-ENDSCRIPT
         if [[ ! -f /usr/share/elasticsearch/lib/elasticsearch-#{rubber_env.elasticsearch_version}.jar ]]; then
@@ -15,6 +16,7 @@ namespace :rubber do
 
           rm -rf /usr/share/elasticsearch/plugins/head
           /usr/share/elasticsearch/bin/plugin -install mobz/elasticsearch-head
+          /usr/share/elasticsearch/bin/plugin -install lukas-vlcek/bigdesk
         fi
       ENDSCRIPT
     end

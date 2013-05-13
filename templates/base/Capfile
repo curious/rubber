@@ -9,8 +9,17 @@ load 'deploy' if respond_to?(:namespace) # cap2 differentiator
 env = ENV['RUBBER_ENV'] ||= (ENV['RAILS_ENV'] || 'production')
 root = File.dirname(__FILE__)
 
+# Curious: clobber RAILS_ENV, since it may not be set, and rubber clobbers it later anyway.
+# We need this for CloudConfig to work without the rails environment
+ENV['RAILS_ENV'] = env
+
 # this tries first as a rails plugin then as a gem
 $:.unshift "#{root}/vendor/plugins/rubber/lib/"
+
+# Curious: CloudConfig secret.rb required by Rubber initialization to set up
+# AWS and S3 secret id's.
+require File.expand_path(File.join('lib', 'config', 'secret.rb'))
+
 require 'rubber'
 
 Rubber::initialize(root, env)

@@ -1,2 +1,6 @@
+# Curious: our web and app servers are the same.  The web_tools server also 
+# requires nginx so its dashboard page works.
 role_dependencies:
+  web: [passenger_nginx]
   app: [passenger_nginx]
+  web_tools: [passenger_nginx]
