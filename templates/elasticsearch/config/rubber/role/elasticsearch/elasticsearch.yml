@@ -38,7 +38,8 @@
 # Cluster name identifies your cluster for auto-discovery. If you're running
 # multiple clusters on the same network, make sure you're using unique names.
 #
-cluster.name: <%= rubber_env.app_name %>
+# Curious: allow explicit configuration of elasticsearch cluster name
+cluster.name: <%= rubber_env.elasticsearch_cluster_name %>
 
 
 #################################### Node #####################################
@@ -91,6 +92,13 @@ cluster.name: <%= rubber_env.app_name %>
 #
 # node.rack: rack314
 
+# Curious: allow instances with the 'elasticsearch_client' role to join the
+# cluster as clients but not masters.
+<% if rubber_instances[rubber_env.host].role_names.include?('elasticsearch_client') %>
+node.master: false
+node.data: false
+node.client: true
+<% end %>
 
 #################################### Index ####################################
 
@@ -228,6 +236,10 @@ http.port: <%= rubber_env.elasticsearch_http_port %>
 #
 # http.enabled: false
 
+# Curious: Workaround for bug between netty and elasticsearch on Ubuntu 12.04
+# that causes 100% CPU usage.
+# See https://github.com/elasticsearch/elasticsearch/issues/1940
+network.tcp.blocking: false
 
 ################################### Gateway ###################################
 
@@ -313,12 +325,16 @@ http.port: <%= rubber_env.elasticsearch_http_port %>
 #
 # 1. Disable multicast discovery (enabled by default):
 #
-# discovery.zen.ping.multicast.enabled: false
+discovery.zen.ping.multicast.enabled: false
 #
 # 2. Configure an initial list of master nodes in the cluster
 #    to perform discovery when new nodes (master or data) are started:
 #
-# discovery.zen.ping.unicast.hosts: ["host1", "host2:port", "host3[portX-portY]"]
+# Curious: disable multicast, as it has all kinds of problems in AWS (servers 
+# can't discover each other, or discover servers from other clusters).  Instead, 
+# use the explicit list of servers in this environment known to have the
+# elasticsearch_server role.
+discovery.zen.ping.unicast.hosts: [<%= rubber_instances.for_role('elasticsearch_server').map { |instance| "\"#{instance.full_name}\"" }.join(",") %>]
 
 # EC2 discovery allows to use AWS EC2 API in order to perform discovery.
 #

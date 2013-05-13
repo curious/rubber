@@ -6,3 +6,7 @@
 
 # Roll the nginx logs at midnight
 0 0 * * * <%= Rubber.root %>/script/rubber cron --task util:rotate_logs --directory=<%= rubber_env.nginx_log_dir %>
+
+# Curious: Check for and execute bloated passenger workers every 5 minutes
+# See http://dev.mensfeld.pl/2012/08/simple-rubyrails-passenger-memory-consumption-limit-monitoring/
+*/5 * * * * <%= Rubber.root %>/script/rubber cron --rake passenger:monitor

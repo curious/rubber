@@ -1,11 +1,20 @@
 passenger_version: 3.0.19
-nginx_version: 1.2.8
+nginx_version: 1.2.9
 passenger_root: "#{`bash -l -c 'find #{ruby_path} -name passenger-#{passenger_version}'`.strip}"
 passenger_ruby: "#{ruby_path}/bin/ruby"
 passenger_lib: "#{passenger_root}/ext/nginx"
-passenger_listen_port: 7000
-passenger_listen_ssl_port: 7001
+# Curious: using ELB for load balancing instead of rubber's default haproxy role, 
+#      so we're running nginx on port 80/443 instead of 7000/7001
+passenger_listen_port: 80
+passenger_listen_ssl_port: 443
 max_app_connections: 20
+# Curious: customize passenger's tmp directory to use ephemeral instance storage 
+# (large, cheap, but non-persistent) instead of /tmp, which is limited to
+# the 8gb available on the root filesystem for EBS-backed AMIs.
+# Also ensure that /mnt/tmp is created and available for passenger,
+# as it is specified as our temp directory by config/environments/<env>.rb
+nginx_temp_path: /mnt/tmp/nginx
+rails_temp_path: /mnt/tmp
 
 use_ssl_key: false
 #if you use an ssl key, put your cert and key
@@ -13,6 +22,8 @@ use_ssl_key: false
 # #{Rubber.root}/config/#{rubber_env.domain} .crt and .key
 #otherwise defaults to key included with linux
 
+# Curious: rubber only defined this in rubber-nginx.yml, but also required in rubber-passenger_nginx.yml
+nginx_log_dir: /mnt/nginx/logs
 
 roles:
   passenger_nginx:

@@ -1,4 +1,12 @@
-# this is a placeholder for development.  for the production version, see config/rubber/common/resque.yml
-environments:
-  development: 'localhost:6379'
-  test: 'localhost:6379'
+# Curious: modified to contain all our environments
+#
+# This file gets overwritten on deployment by Rubber.  The only environments
+# whose values here are used are development and test.
+# See config/rubber/common/resque.yml
+
+development: localhost:6379
+test: localhost:9736
+externaldev: localhost:6379
+partners: localhost:6379
+qa: localhost:6379
+production: localhost:6379

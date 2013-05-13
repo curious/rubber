@@ -14,3 +14,6 @@ RAILS_ENV=<%= Rubber.env %>
 
 # Roll all rails logs at midnight
 0 0 * * * <%= Rubber.root %>/script/rubber cron --task util:rotate_logs --directory=<%= Rubber.root %>/log
+
+# Curious: Ship rolled logs to S3
+15 0 * * * <%= Rubber.root %>/script/rubber cron --rake backup:logs

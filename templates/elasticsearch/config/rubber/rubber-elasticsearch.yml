@@ -1,4 +1,5 @@
-elasticsearch_version: 0.19.12
+# Curious: use upgraded version of elasticsearch
+elasticsearch_version: 0.20.5
 elasticsearch_prefix: /usr/local
 elasticsearch_dir: "#{elasticsearch_prefix}/elasticsearch-#{elasticsearch_version}"
 elasticsearch_data_dir: "/mnt/elasticsearch/data"
@@ -6,6 +7,15 @@ elasticsearch_work_dir: "/mnt/elasticsearch/work"
 elasticsearch_log_dir: "/mnt/elasticsearch/logs"
 elasticsearch_pid_file: "/var/run/elasticsearch.pid"
 elasticsearch_http_port: 9200
+# Curious: specify cluster name explicitly
+elasticsearch_cluster_name: curious
+
+# Curious: we invented two new roles (elasticsearch_client and elasticsearch_server)
+# that specify whether the instance is eligible to be a master in the elasticsearch
+# cluster, or just a client.  Both require the underlying elasticsearch role.
+role_dependencies:
+  elasticsearch_client: [elasticsearch]
+  elasticsearch_server: [elasticsearch]
 
 roles:
   elasticsearch:
