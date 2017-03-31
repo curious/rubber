@@ -9,7 +9,7 @@ export RAILS_ENV=<%= Rubber.env %>
 alias current="cd <%= current_path %>"
 alias release="cd <%= Rubber.root %>"
 
-# Curious: Tune Ruby 1.9.3 garbage collector using the settings recommended by Twitter.
+# Curious: Tune Ruby garbage collector using the settings recommended by Twitter.
 # See http://www.web-l.nl/posts/15-tuning-ruby-s-garbage-collector-with-rvm-and-passenger
 # See http://www.rubyenterpriseedition.com/documentation.html
 #
@@ -23,7 +23,7 @@ alias release="cd <%= Rubber.root %>"
 #    Twitter claims that these settings give them about 20% to 40% average performance 
 #    improvement, at the cost of slightly higher peak memory usage."
 #
-export RUBY_HEAP_MIN_SLOTS=500000
 export RUBY_HEAP_SLOTS_INCREMENT=250000
 export RUBY_HEAP_SLOTS_GROWTH_FACTOR=1
+export RUBY_GC_HEAP_INIT_SLOTS=500000
 export RUBY_GC_MALLOC_LIMIT=50000000
